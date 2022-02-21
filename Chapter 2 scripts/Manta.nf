@@ -1,8 +1,8 @@
    
 #!/usr/bin/env nextflow
 
-ref = file("/dataB/aux/38/Homo_sapiens_assembly38/Homo_sapiens_assembly38.fasta", type:'file')
-refi = file("/dataB/aux/38/Homo_sapiens_assembly38/Homo_sapiens_assembly38.fasta.fai", type:'file')
+ref = file("Homo_sapiens_assembly38.fasta", type:'file')
+refi = file("Homo_sapiens_assembly38.fasta.fai", type:'file')
 
 
 mixed = "/dataJ/build38/datasets/*/bam/*/*"
