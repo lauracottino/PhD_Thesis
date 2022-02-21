@@ -1,7 +1,7 @@
 #!/usr/bin/env nextflow
 
-reports = Channel.fromPath("/dataE/AWIGenGWAS/Batch4//Batch4_gtReports/*.csv")
-prefix = "/spaces/lcottino/PennCNV/ALL/SplitReports/"
+reports = Channel.fromPath("/*.csv")
+prefix = "/SplitReports/"
 suffix = ".txt"
 script = "/opt/exp_soft/bioinf/PennCNV/split_illumina_report_NEW.pl"
 
