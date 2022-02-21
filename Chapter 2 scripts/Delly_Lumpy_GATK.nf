@@ -1,10 +1,9 @@
 #!/usr/bin/env nextflow
 
 // INPUTS
-// ref_hg19  = file("/home/phelelani/projects/laura/data/indexes/hg19/human_g1k_v37_decoy.fa", type:'file')
-ref_hg38  = file("/home/phelelani/projects/laura/data/indexes/hg38/Homo_sapiens_assembly38.fa", type:'file')
-bams = Channel.fromFilePairs("/external/diskC/build38/datasets/bam/1000G/NA1848*{.bam,.bam.bai}", size:-2)
-contigs = file("/home/phelelani/nf-workflows/nf-sve/data/contigs.txt", type:'file')
+ref_hg38  = file("Homo_sapiens_assembly38.fa", type:'file')
+bams = Channel.fromFilePairs("*{.bam,.bam.bai}", size:-2)
+contigs = file("contigs.txt", type:'file')
 
 // DELLY PARAMS
 chromosomes = ['1','2','3','4','5','6','7','8','9','10','11','12','13','14','15','16','17','18','19','20','21','22']
@@ -276,110 +275,3 @@ process lumpy_mergeSampleChr {
     """
 }
 // =============================================== LUMPY ============================================== //
-//
-//
-// =============================================== MANTA ============================================== //
-process manta {
-	tag { sample }
-    cpus 5
-    memory '5 GB'
-
-    input:
-	set sample, file(bam), file(bai) from sampleBAMsChr_manta
-    
-	output:
-	set val("${bam.baseName.replaceAll("${sample}_","")}"),
-        file("${bam.baseName}.vcf.gz"), file("${bam.baseName}.vcf.gz.tbi") into chrVCFs_manta
-	set val("${bam.baseName.replaceAll("${sample}_","")}"), file(bam), file(bai) into chrBAMs_graphtyper
-
-	"""
-	/opt/exp_soft/bioinf/manta/bin/configManta.py \
-	    --bam ${bam} \
-	    --referenceFasta ${ref_hg38} \
-	    --runDir .
-
-	./runWorkflow.py -j 5 -g 5
-    cp results/variants/diploidSV.vcf.gz ${bam.baseName}.vcf.gz
-    cp results/variants/diploidSV.vcf.gz.tbi ${bam.baseName}.vcf.gz.tbi
-	"""
-}
-
-chrVCFs_manta
-    .groupTuple(by: 0)
-    .set { chrVCFs_manta_grp }
-
-process svimmer {
-    tag { chr }
-    cpus 4
-
-    input:
-    set chr, file(vcf), file(tbi) from chrVCFs_manta_grp
-
-    output:
-    set chr, file("svimmer_merged_${chr}.vcf.gz"), file("svimmer_merged_${chr}.vcf.gz.tbi") into chrVCFs_svimmer
-    
-    """
-    ls *_${chr}.vcf.gz > input_vcfs
-    /opt/exp_soft/bioinf/svimmer/svimmer --threads 4 input_vcfs ${chr} --output svimmer_merged_${chr}.vcf
-    sed -i "/chr6.*BND/d" svimmer_merged_${chr}.vcf
-    bgzip svimmer_merged_${chr}.vcf
-    tabix svimmer_merged_${chr}.vcf.gz
-    """
-}
-
-chrBAMs_graphtyper
-    .groupTuple(by: 0)
-    .join(chrVCFs_svimmer,by: 0)
-    .set { chrBAMsVCFs_graphtyper }
-
-process graphTyper {
-   tag { chr }
-    errorStrategy 'finish'
-    memory '50 GB'
-    cpus 4
-
-    input:
-    set chr, file(bam), file(bai), file(vcf), file(tbi) from chrBAMsVCFs_graphtyper
-
-    output:
-    set chr, file("sv_results/${chr}") into chrVCFs_graphtyper
-
-    """
-    #!/bin/bash
-    ls *_${chr}.bam > bamlist
-    graphtyper genotype_sv ${ref_hg38} ${vcf} --sams=bamlist --region=${chr} --threads=4
-    """
-}
-
-process graphTyper_mergeByChr {
-    tag { chr }
-
-    input:
-    set chr, file(chrom) from chrVCFs_graphtyper
-
-    output:
-    set file("${chr}.vcf.gz"), file("${chr}.vcf.gz.tbi") into chrVCFsMerged_graphtyper
-    
-    """
-    bcftools concat $chrom/*vcf.gz -Oz -o ${chr}_unsorted.vcf.gz
-    bcftools sort ${chr}_unsorted.vcf.gz -Oz -o ${chr}.vcf.gz
-    tabix ${chr}.vcf.gz
-    """
-}
-
-process graphTyper_mergeAllChroms {
-    publishDir "${out_dir}/manta", mode: 'copy'
-
-    input:
-    file(chroms) from chrVCFsMerged_graphtyper.collect()
-
-    output:
-    set file("manta_svimmer_graphTyper_chromosomes.vcf.gz"), file("manta_svimmer_graphTyper_chromosomes.vcf.gz") into allResult
-    
-    """
-    bcftools concat *vcf.gz --output-type z --output manta_svimmer_graphTyper_unsorted.vcf.gz
-    bcftools sort manta_svimmer_graphTyper_unsorted.vcf.gz -Oz -o manta_svimmer_graphTyper_chromosomes.vcf.gz   
-    tabix manta_svimmer_graphTyper_chromosomes.vcf.gz
-    """
-}
-// =============================================== MANTA ============================================== //
