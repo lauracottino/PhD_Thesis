@@ -1,7 +1,7 @@
 #!/bin/bash
 #SBATCH --mem=1gb
 
-VCF=VCFs/
+VCF=/VCFs/
 classpath="/opt/exp_soft/bioinf/svtoolkit/lib/gatk/GenomeAnalysisTK.jar"
 java -cp ${classpath} org.broadinstitute.gatk.tools.CatVariants \
     -R /dataB/aux/38/Homo_sapiens_assembly38/Homo_sapiens_assembly38.fasta \
